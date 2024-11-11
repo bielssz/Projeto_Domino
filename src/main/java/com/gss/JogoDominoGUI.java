@@ -84,72 +84,105 @@ public class JogoDominoGUI extends JFrame {
     private class MesaPanel extends JPanel {
         private final int peçaWidth = 30;   // Largura fixa para as peças
         private final int peçaHeight = 50;  // Altura fixa para as peças
-        private final int espaçamentoHorizontal = 10;  // Espaçamento extra para peças horizontais
-        private final int espaçamentoVertical = 10;    // Espaçamento extra para peças verticais
+        private final int espaçamentoHorizontal = 1;  // Espaçamento extra para peças horizontais
+        private final int espaçamentoVertical = 1;    // Espaçamento extra para peças verticais
         private int x, y;  // Posição da próxima peça
-        private int limiteInferior;  // Limite inferior da mesa
-        private boolean desenharHorizontal;  // Define se a peça deve ser desenhada horizontalmente
+        private int limiteInferior, limiteDireito;  // Limites inferior e direito da mesa
+        private boolean linhaHorizontalIniciada = false;  // Define se deve iniciar a linha horizontal
+        private boolean colunaVerticalIniciada = false;  // Define se deve iniciar a nova coluna vertical no lado direito
+        private boolean parteHorizontal = false;  // Marca se já iniciou a parte horizontal da quebra
     
         public MesaPanel() {
             // Inicializa a posição para a primeira peça (centralizada no topo)
-            this.x = (getWidth() - peçaWidth) / 2;
-            this.y = 20;  // Começa no topo da tela
+            this.x = 20;
+            this.y = 20;
             this.limiteInferior = getHeight() - 40;  // Limite inferior da mesa
-            this.desenharHorizontal = false;  // Começa com a primeira peça na orientação vertical
+            this.limiteDireito = getWidth() - 20;  // Limite direito da mesa
         }
     
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
     
-            // Atualiza o limite inferior caso a janela seja redimensionada
+            // Atualiza os limites caso a janela seja redimensionada
             limiteInferior = getHeight() - 40;
+            limiteDireito = getWidth() - 20;
     
             for (int i = 0; i < jogo.getMesa().size(); i++) {
                 Domino peca = jogo.getMesa().get(i);
-                DominoImage dominoImage = new DominoImage(peca.getLado1(), peca.getLado2(), peçaWidth, peçaHeight);
+    
+                // Define os lados da peça de acordo com a orientação
+                int lado1 = linhaHorizontalIniciada || colunaVerticalIniciada ? peca.getLado2() : peca.getLado1();
+                int lado2 = linhaHorizontalIniciada || colunaVerticalIniciada ? peca.getLado1() : peca.getLado2();
+                DominoImage dominoImage = new DominoImage(lado1, lado2, peçaWidth, peçaHeight);
                 BufferedImage dominoImg = dominoImage.createDominoImage();
     
-                // Atualiza posição x e y para iniciar centralizado na primeira peça
+                // Atualiza a posição inicial para a primeira peça
                 if (i == 0) {
-                    x = (getWidth() - peçaWidth) / 2;
-                    y = 20;
+                    x = 20;  // Começa no canto esquerdo
+                    y = 20;  // Começa no topo
                 }
     
                 // Desenha a peça na orientação atual (horizontal ou vertical)
                 Graphics2D g2d = (Graphics2D) g;
-                if (desenharHorizontal) {
+                if (linhaHorizontalIniciada) {
                     g2d.rotate(Math.toRadians(90), x + peçaWidth / 2, y + peçaHeight / 2);
                 }
                 g2d.drawImage(dominoImg, x, y, this);
     
-                // Se a peça foi girada, desfaz a rotação para os próximos desenhos
-                if (desenharHorizontal) {
+                // Desfaz a rotação, se necessário
+                if (linhaHorizontalIniciada) {
                     g2d.rotate(Math.toRadians(-90), x + peçaWidth / 2, y + peçaHeight / 2);
                 }
     
                 // Atualiza a posição para a próxima peça
-                if (desenharHorizontal) {
-                    x += peçaHeight + espaçamentoHorizontal;  // Avança horizontalmente
-                    if (x + peçaHeight > getWidth() - 20) {    // Se atingir o limite direito
-                        desenharHorizontal = false;
-                        y += peçaWidth + espaçamentoVertical;  // Começa uma nova linha vertical
-                        x = (getWidth() - peçaWidth) / 2;  // Reinicia x centralizado
+                if (linhaHorizontalIniciada) {
+                    // Continua a linha horizontal
+                    x += peçaHeight + espaçamentoHorizontal;
+                    
+                    // Se atingir o limite direito, começa uma nova coluna vertical no lado direito
+                    if (x + peçaHeight > limiteDireito) {
+                        linhaHorizontalIniciada = false;
+                        colunaVerticalIniciada = true;
+                        x = limiteDireito - peçaWidth;  // Ajusta x para o lado direito
+                        y = limiteInferior - peçaHeight;  // Inicia a nova coluna no limite inferior
                     }
+                } else if (colunaVerticalIniciada) {
+                    // Se a peça está na vertical, a parte vertical será desenhada primeiro
+                    if (!parteHorizontal) {
+                        y += peçaHeight + espaçamentoVertical;
+    
+                        // Se atingir o limite inferior, inicia a parte horizontal
+                        if (y + peçaHeight > limiteInferior) {
+                            // A parte vertical termina aqui
+                            parteHorizontal = true;
+                            y = limiteInferior - peçaHeight;  // Ajusta y para o limite inferior
+                            x += peçaWidth + espaçamentoHorizontal;  // Inicia a parte horizontal à direita
+                        }
+                    }
+    
+                    // Desenha a parte horizontal após a parte vertical
+                    if (parteHorizontal) {
+                        x += peçaHeight + espaçamentoHorizontal;  // Muda para a posição horizontal
+                        // Aqui a parte horizontal continua no limite inferior
+                        g2d.drawImage(dominoImg, x, y, this);
+                    }
+    
                 } else {
-                    y += peçaHeight + espaçamentoVertical;  // Avança verticalmente
-                    if (y + peçaHeight > limiteInferior) {   // Se atingir o limite inferior
-                        desenharHorizontal = true;
-                        x += peçaWidth + espaçamentoHorizontal;  // Começa uma nova linha horizontal
+                    // Desenha verticalmente até o limite inferior
+                    y += peçaHeight + espaçamentoVertical;
+    
+                    // Ao atingir o limite inferior, inicia a linha horizontal no canto esquerdo
+                    if (y + peçaHeight > limiteInferior) {
+                        linhaHorizontalIniciada = true;
                         y = limiteInferior - peçaHeight;  // Ajusta y para o limite inferior
+                        x = 20;  // Reinicia x no canto esquerdo
                     }
                 }
             }
         }
     }
-    
-    
-   
+
     private void atualizarInterface() {
         setTitle("Jogo de Dominó - Vez de: " + nomesJogadores.get(jogo.jogadorAtual));
 
